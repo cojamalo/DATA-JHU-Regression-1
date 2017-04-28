@@ -10,4 +10,8 @@ You work for Motor Trend, a magazine about the automobile industry. Looking at a
 1) “Is an automatic or manual transmission better for MPG”
 2) "Quantify the MPG difference between automatic and manual transmissions"
 
+Libraries
+In addition to R packages, this project also is dependent on my custom functions available at:
+https://github.com/cojamalo/Multiple-Linear-Reg-Tools/blob/master/mult_regres.R
+
 Project coded by Connor Lenio ©2017.
