@@ -1,0 +1,181 @@
+---
+title: "The MPG Difference between 1973 Cars with Automatic and Manual Transmissions"
+output: pdf_document
+---
+### Submission by Connor Lenio. Email: cojamalo@gmail.com. Completion Date: Apr 28, 2017.
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.align='center', message = FALSE, warning=FALSE)
+```
+
+## Executive Summary
+
+A popular metric of a car's fuel economy is its miles-per-gallon rating (MPG). There are many features of a car that may impact its MPG. This analysis explores the following two concerns:
+
+* “Is an automatic or manual transmission better for MPG”
+* "Quantify the MPG difference between automatic and manual transmissions"
+
+The analysis uses data for 1973 model cars and features inference for the difference between means and single linear regression to consider transmission type as sole predictor for MPG. In isolation, transmission type is a moderately weak predictor for MPG. The analysis continues by incorporating the other factors available in the data for determining MPG using multiple linear regression to determine how transmission type effects MPG when other features of a car are considered. With other more informative factors included and a stronger model fit to the data, transmission type is not expected to be a significant predictor for the MPG of 1973 cars.
+
+## Getting Started
+
+### Load packages
+```{r load-packages, message=FALSE, results='hide'}
+library(DAAG); library(AICcmodavg);library(pander); library(ggplot2); library(gridExtra); library(dplyr)
+if(!exists("tree_lm", mode="function")) source("mult_regres.R")
+```
+This analysis will rely on custom functions in "mult_regres.r." The code for these functions is kept separate for brevity, but can be viewed at any time at my [mult_regres.R git repository](https://github.com/cojamalo/Multiple-Linear-Reg-Tools/blob/master/mult_regres.R). 
+
+### The data
+```{r load-data, message=FALSE}
+data(mtcars) 
+```
+From the package <i>datasets</i>:
+"The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models)."
+
+The explanatory variable for transmission type (0 = automatic, 1 = manual) is `am`, and the response variable for MPG in miles per gallon is `mpg`. 
+
+## Exploratory Data Analysis
+
+First, the data is summarized by `am` to compare the sample size, mean, and variance of the automatic and manual cars.
+
+```{r am-summary, results ='asis'}
+mtcars_table <- mtcars %>% 
+            tbl_df %>%
+            group_by(am) %>%  
+            summarize(n = n(), Mean = round(mean(mpg),1), 
+                      Variance = round(var(mpg), 1))
+pandoc.table(mtcars_table)
+```
+The sample sizes are unequal and have different variances. Moreover, the mean `mpg` of the automatic cars is lower than the manual cars. For a plot of the distribution and density of the mtcars data grouped by `am`, please view <i>Figure 1</i> in <u>Appendix A: Figures.</u>
+
+## Inferential Analysis
+One way to address “Is an automatic or manual transmission better for MPG” is to compare the mean of the two groups and test for statistical significance. A valid two sample t-test assumes the data represents IID samples and that the sampling distribution of the response variable under consideration in both sample populations is normal. Each observation is a single, unique car and one can assume `mpg` varies normally in the population of 1973 model cars.
+```{r t-test-am}
+t.test(mpg ~ am, mtcars)
+```
+The p-value for the t-test is 0.001. Thus, 1973 manual cars have a statistically significant 7.3 mpg ± 4.0 mpg greater mpg than 1973 automatic cars.
+
+## Simple Linear Regression Model
+
+In order to quantify this relationship, single linear regression is used with the formula, `mpg ~ am`.  
+```{r}
+fit1 <- lm(mpg ~ am, mtcars)
+summary(fit1)
+```
+For a plot of this linear regression over the data, please view <i>Figure 2</i> in <u>Appendix A: Figures.</u>
+
+The linear regression suggests that MPG has a moderate linear correlation with transmission type (r = 0.5998). The model is of the form:
+
+$$ mpg = 17.15 + 7.24* am  + e$$
+The p-value for the slope estimate for `am` is < 0.05, so this relationship between `am` and `mpg` is statistically significant. 
+However, the R-squared for the model is only 0.3598, signifying that about 36.0% of the variability in MPG can be explained by transmission type using this model. Thus, if all one knew about a 1973 model car was its transmission type, then `fit1` would give them an estimate, but with a large variability in accuracy for predicting MPG. It is worth investigating other models that include `am` to utilize the additional information in `mtcars` to identifying confounding explanatory variables for `mpg` and to determine a better fit for the data.   
+
+## Multiple Regression Modelling
+Before, evaluating more models, each explanatory variable in `mtcars` is compared to `mpg` to determine if any linear transformations may be performed to better fit the data such as logistic or reciprocal transformations. The custom functions `find_best_trans` and `add_best_trans` are used from my [mult_regres.R git repository](https://github.com/cojamalo/Multiple-Linear-Reg-Tools/blob/master/mult_regres.R). In short, the functions determine if transformations of the variables lead to any better fits, then adds these transformed variables to the data set, `mtcars`, yielding `new_mtcars`.
+```{r mtcars-lin-trans, message=FALSE, warning=FALSE, cache=TRUE}
+new_mtcars <- add_best_trans(find_best_trans(mpg,mtcars),mtcars)
+glimpse(new_mtcars[,(ncol(mtcars)+1):ncol(new_mtcars)])
+```
+A glimpse of the newly added transformed variables reveals eight variables that may produce better linear fits if transformed.
+
+Next, the custom function, `tree_lm`, from my [mult_regres.R git repository](https://github.com/cojamalo/Multiple-Linear-Reg-Tools/blob/master/mult_regres.R) is used to search using recursion for the best formulas for predicting `mpg` using `new_mtcars`. The function prioritizes parsimony by constructing candidate formulas step by step and returning the best models by the quality and the number of predictors included. In this particular case, the Akaike information criterion (AICc) method is used to find the "best" models.
+
+```{r top-models,cache=TRUE}
+pandoc.table(tree_lm("mpg ~ am", new_mtcars, "AICc", kfold=TRUE), round = 3)
+```
+Three models are suggested by `tree_lm`:
+```{r anova-fits}
+fit2 <- lm(mpg ~ am + recip_disp,new_mtcars)
+fit3 <- lm(mpg ~ am + recip_hp + log_wt,new_mtcars)
+fit4 <- lm(mpg ~ am + recip_disp + log_wt + recip_hp,new_mtcars)
+```
+
+An ANOVA is run, starting with `fit1`, in order of a number of predictors to determine the point at which adding another predictor no longer yields a significantly improved model.
+```{r}
+anova(fit1, fit2, fit3, fit4)
+```
+The fourth model is no longer significantly improved over model three.
+
+Thus, `fit3` is selected as the best model for this analysis.
+```{r summary-best}
+summary(fit3)
+```
+The multiple regression suggests that MPG has a strong linear correlation with transmission type, the reciprocal of horsepower, and the log of weight. (r = 0.945). The model is of the form:
+
+$$ mpg = 26.747 + 0.205*am  + \frac{634.09}{disp} -10.789 * \log{(wt)} +e$$
+
+The adjusted R-squared for the model is 0.8818. Thus, about 88.2% of the variability in MPG can be explained by the explanatory variables in this model. 
+
+However, the role of transmission in this model is not significant as its p-value is greater than 0.05. Therefore, it is not unlikely that there is no relationship between `am` and `mpg` when considering the information provided by the other two predictors. The interesting conclusion from the multiple regression is that there is not likely to be a significant difference in `mpg` for 1973 automatic and manual cars when accounting for other attributes of 1973 cars that effect `mpg`.
+
+
+## Residual Analysis
+For the residual plots for `fit3`, please view <i>Figure 3</i> in <u>Appendix A: Figures.</u>
+
+A valid linear analysis involves:
+
+(1) A linear relationship between each (numerical) explanatory variable and the response
+
+    Looking at the bottom row of <i>Figure 4<i> in in <u>Appendix A: Figures</u>, there is a linear relationship between `mpg` and each of the explanatory variables.
+    
+(2) Nearly normal residuals with a mean of zero
+
+    Yes, the quantile-quantile plot of the residuals in <i>Figure 3</i> confirms a normal distribution and residuals are centered around zero.
+    
+(3) Constant variability of residuals
+
+    Yes, but heteroscedasticity may still be an issue. The Scale-Location plot in <i>Figure 3</i> does not show a straight line from left to right, so there may be differences in variability of residuals. One must be wary that the model may result in biased prediction accuracies for different cars. 
+    
+(4) Independence of residuals (and hence observations)
+
+    Yes, the residuals versus fitted plot in <i>Figure 3</i>, the residuals all appear independent
+
+## Conclusion
+
+If all that was known about a 1973 model car was its transmission type, then a manual car is expected to have 7.245 greater MPG than an automatic car. However, transmission type is not the most informative feature of a 1973 car for determining its MPG. Thus, when more informative variables like the car's weight and engine power (horsepower) are considered, transmission type is not likely to effect a 1973 car's MPG. In that case, there is no MPG difference between automatic and manual transmissions.
+
+
+## Appendix A: Figures
+### Figure 1: The following is a plot of the distribution and density of the mtcars data grouped by `am`:
+```{r plot-by-am, echo=FALSE}
+boxplot <- ggplot(data = mtcars, aes(x = am, y = mpg, fill = factor(am), color = factor(am))) +
+  geom_boxplot(alpha =0.6) + 
+    theme(legend.position=c(0.2, 0.8), plot.title = element_text(hjust = 0.5)) +
+    labs(title = "Boxplot of MPG by `am`", y = "MPG", x = "am", fill = "am",color = "am")
+
+density <- ggplot(mtcars, aes(mpg)) + geom_density(aes(fill = factor(am),color = factor(am)), 
+                                                      alpha = 0.6) +
+        geom_vline(xintercept = mtcars_table[[1,3]], color = "#F8766D") +
+    geom_vline(xintercept = mtcars_table[[1,3]] + sqrt(mtcars_table[[1,4]]), color = "#F8766D", lty = 2, alpha =0.6) +
+    geom_vline(xintercept = mtcars_table[[1,3]] - sqrt(mtcars_table[[1,4]]), color = "#F8766D", lty = 2, alpha =0.6) +
+    geom_vline(xintercept = mtcars_table[[2,3]] , color = "#00BFC4") +
+    geom_vline(xintercept = mtcars_table[[2,3]]  + sqrt(mtcars_table[[2,4]]), color = "#00BFC4", lty = 2, alpha =0.6) +
+    geom_vline(xintercept = mtcars_table[[2,3]]  - sqrt(mtcars_table[[2,4]]), color = "#00BFC4", lty = 2, alpha =0.6) +
+    theme(legend.position=c(0.8, 0.8), plot.title = element_text(hjust = 0.5)) +
+    labs(title = "Density of MPG by `am`", y = "P(MPG)", x = "MPG", fill = "am",color = "am")
+
+grid.arrange(boxplot, density,ncol = 2)
+```
+
+
+### Figure 2: Plot of this linear regression using formula `mpg ~ am`:
+```{r plot-lm-am, echo=FALSE}
+ggplot(data = mtcars, aes(x = am, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) 
+```
+
+### Figure 3: Four-panel Residual Plot of `fit3`, for formula `mpg ~ am + recip_hp + log_wt`:
+```{r reside-best, echo=FALSE}
+# type your code for the Question 5 here, and Knit
+par(mfrow=c(2,2))
+plot(fit3)
+```
+
+### Figure 4: GGpairs plot of `fit3`, for formula `mpg ~ am + recip_hp + log_wt`:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(GGally)
+new_mtcars %>% select(am, recip_hp, log_wt, mpg) %>% ggpairs(lower = list(continuous = my_fn))
+```
+
+
