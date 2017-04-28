@@ -13,7 +13,7 @@ You work for Motor Trend, a magazine about the automobile industry. Looking at a
 
 Libraries:
 
-In addition to R packages, this project also is dependent on my custom functions available at:
+In addition to the listed R packages in the pdf, this project is dependent on my custom functions available at:
 https://github.com/cojamalo/Multiple-Linear-Reg-Tools/blob/master/mult_regres.R
 
 Project coded by Connor Lenio ©2017.
