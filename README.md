@@ -16,4 +16,4 @@ Libraries:
 In addition to the listed R packages in the pdf, this project is dependent on my custom functions available at:
 https://github.com/cojamalo/Multiple-Linear-Reg-Tools/blob/master/mult_regres.R
 
-Project coded by Connor Lenio ©2017.
+Project coded by Connor Lenio - released into the public domain for educational purposes in 2017. 
